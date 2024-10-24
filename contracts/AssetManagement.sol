@@ -47,10 +47,10 @@ contract AssetManagement is Ownable, ReentrancyGuard {
     error SentFailed();
     error NotCreator();
     error Unmodifiable();
+    error CannotFetch();
 
     constructor(
-        address _newSValueFeed,
-        address _tokenForDeposit
+        address _newSValueFeed
     ) Ownable(msg.sender) {
         require(_newSValueFeed != address(0));
         sValueFeed = ISupraSValueFeed(_newSValueFeed);
@@ -63,7 +63,7 @@ contract AssetManagement is Ownable, ReentrancyGuard {
         uint[] memory tokenWeightInput,
         uint[] memory oldPriceOfToken,
         uint initialAmount
-    ) public returns (uint newValue, uint percent, bool isLoss, uint[] memory) {
+    ) view public returns (uint newValue, uint percent, bool isLoss, uint[] memory) {
         newValue = initialAmount;
         uint[] memory newPrice;
         for (uint index = 0; index < tokenPairIndexesInput.length; index++) {
@@ -240,11 +240,11 @@ contract AssetManagement is Ownable, ReentrancyGuard {
     }
 
     function updatePool(
-        uint poolIdx,
+        uint poolIdxInput,
         uint64[] calldata tokenPairIndexesInput,
         uint[] calldata tokenWeightInput
     ) external {
-        Pool storage pool = pools[poolIdx];
+        Pool storage pool = pools[poolIdxInput];
         Pool memory poolMem = pool;
         if (poolMem.isModified == false) {
             revert Unmodifiable();
@@ -281,16 +281,19 @@ contract AssetManagement is Ownable, ReentrancyGuard {
         emit FeeUpdated(feeInput);
     }
 
-    function getPoolInfo(uint poolIdx) external returns (Pool memory) {
-        return pools[poolIdx];
+    function getPoolInfo(uint poolIdxInput) view external returns (Pool memory) {
+        return pools[poolIdxInput];
     }
 
-    function getFee() external returns (uint) {
+    function getFee() view external returns (uint) {
         return fee;
     }
 
     function fetchPrice(uint64 value) private view returns (uint[4] memory) {
-        (bytes32 data, ) = sValueFeed.getSvalue(value);
+        (bytes32 data, bool success) = sValueFeed.getSvalue(value);
+        if (success == false) {
+            revert CannotFetch();
+        }
         return unpack(data);
     }
 
